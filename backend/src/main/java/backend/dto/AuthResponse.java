@@ -1,6 +1,7 @@
 package backend.dto;
 
-import com.anythingai.app.entity.Role;
+
+import backend.entities.Role;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
