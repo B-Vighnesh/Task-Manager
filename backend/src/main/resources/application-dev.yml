@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3000/task
+    username: postgres
+    password: postgres
+  jpa:
+    show-sql: true
+
+app:
+  jwt:
+    secret: 8f3d1e7b9c4a2f6d8e1b7c5a9d2f4e6c8b1a3d5f7e9c2b4a6d8e1f3c5b7a9d2
+    expiration: 86400000
