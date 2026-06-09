@@ -2,6 +2,7 @@ package backend.service;
 
 import backend.dto.TaskRequest;
 import backend.dto.TaskResponse;
+import backend.dto.TaskUpdateRequest;
 import backend.entities.Role;
 import backend.entities.Task;
 import backend.entities.User;
@@ -61,10 +62,10 @@ public class TaskService {
     }
 
     @Transactional
-    public TaskResponse updateTask(UUID id, TaskRequest request, Authentication authentication) {
+    public TaskResponse updateTask(UUID id, TaskUpdateRequest request, Authentication authentication) {
         Task task = findTask(id);
         ensureAllowed(task, getCurrentUser(authentication));
-        applyRequest(task, request);
+        applyUpdateRequest(task, request);
 
         return toResponse(taskRepository.save(task));
     }
@@ -94,6 +95,14 @@ public class TaskService {
     }
 
     private void applyRequest(Task task, TaskRequest request) {
+        task.setTitle(request.getTitle().trim());
+        task.setDescription(request.getDescription() == null ? null : request.getDescription().trim());
+        if (request.getCompleted() != null) {
+            task.setCompleted(request.getCompleted());
+        }
+    }
+
+    private void applyUpdateRequest(Task task, TaskUpdateRequest request) {
         task.setTitle(request.getTitle().trim());
         task.setDescription(request.getDescription() == null ? null : request.getDescription().trim());
         if (request.getCompleted() != null) {

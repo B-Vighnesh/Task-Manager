@@ -3,6 +3,7 @@ package backend.controller;
 import backend.dto.ApiResponse;
 import backend.dto.TaskRequest;
 import backend.dto.TaskResponse;
+import backend.dto.TaskUpdateRequest;
 import backend.service.TaskService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -52,7 +53,7 @@ public class TaskController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<TaskResponse>> updateTask(@PathVariable UUID id, @Valid @RequestBody TaskRequest request, Authentication authentication) {
+    public ResponseEntity<ApiResponse<TaskResponse>> updateTask(@PathVariable UUID id, @Valid @RequestBody TaskUpdateRequest request, Authentication authentication) {
         return ResponseEntity.ok(ApiResponse.ok("Task updated successfully", taskService.updateTask(id, request, authentication)));
     }
 

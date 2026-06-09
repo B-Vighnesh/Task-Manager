@@ -1,8 +1,6 @@
 package backend.config;
 
-import backend.dto.ApiResponse;
 import backend.security.JwtAuthenticationFilter;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +21,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.time.LocalDateTime;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -30,12 +30,10 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
-    private final ObjectMapper objectMapper;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, UserDetailsService userDetailsService, ObjectMapper objectMapper) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, UserDetailsService userDetailsService) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.userDetailsService = userDetailsService;
-        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -83,6 +81,10 @@ public class SecurityConfig {
     private void writeError(HttpServletResponse response, int status, String message) throws java.io.IOException {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getWriter(), ApiResponse.error(message));
+        response.getWriter().write("""
+                {"success":false,"message":"%s","data":null,"timestamp":"%s"}""".formatted(
+                message.replace("\"", "\\\""),
+                LocalDateTime.now()
+        ));
     }
 }
