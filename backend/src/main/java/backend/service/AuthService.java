@@ -32,13 +32,45 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        return new AuthResponse(null, null, null);
+        String email = request.getEmail().trim().toLowerCase();
+        String username = request.getUsername().trim();
+
+        if (userRepository.existsByEmail(email)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is already in use");
+        }
+        if (userRepository.existsByUsername(username)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is already taken");
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRole(Role.USER);
+
+        userRepository.save(user);
+
+        String token = jwtTokenProvider.generateToken(user.getEmail());
+        return new AuthResponse(token, user.getUsername(), user.getRole());
     }
 
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
+        String email = request.getEmail().trim().toLowerCase();
 
-        return new AuthResponse(null, null, null);
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, request.getPassword())
+            );
+        } catch (BadCredentialsException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
+
+        String token = jwtTokenProvider.generateToken(user.getEmail());
+        return new AuthResponse(token, user.getUsername(), user.getRole());
     }
 
 }
