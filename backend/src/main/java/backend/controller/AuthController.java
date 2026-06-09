@@ -2,10 +2,10 @@ package backend.controller;
 
 import backend.dto.ApiResponse;
 import backend.dto.AuthResponse;
+import backend.dto.LoginRequest;
 import backend.dto.RegisterRequest;
 import backend.service.AuthService;
 import jakarta.validation.Valid;
-import org.apache.coyote.BadRequestException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,8 +22,14 @@ public class AuthController {
         this.authService = authService;
     }
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) throws BadRequestException {
+    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authService.register(request);
         return ResponseEntity.status(201).body(ApiResponse.ok("User registered successfully", response));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
+        AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(ApiResponse.ok("Login successful", response));
     }
 }

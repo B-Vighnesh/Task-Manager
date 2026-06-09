@@ -1,14 +1,19 @@
 package backend.service;
 import backend.dto.AuthResponse;
+import backend.dto.LoginRequest;
 import backend.dto.RegisterRequest;
 import backend.entities.Role;
 import backend.entities.User;
 import backend.repository.UserRepository;
 import backend.security.JwtTokenProvider;
-import org.apache.coyote.BadRequestException;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
@@ -16,32 +21,24 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AuthenticationManager authenticationManager;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, AuthenticationManager authenticationManager) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.authenticationManager = authenticationManager;
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) throws BadRequestException {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email is already in use");
-        }
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new BadRequestException("Username is already taken");
-        }
+    public AuthResponse register(RegisterRequest request) {
+        return new AuthResponse(null, null, null);
+    }
 
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(Role.USER);
+    @Transactional(readOnly = true)
+    public AuthResponse login(LoginRequest request) {
 
-        userRepository.save(user);
-
-        String token = jwtTokenProvider.generateToken(user.getEmail());
-        return new AuthResponse(token, user.getUsername(), user.getRole());
+        return new AuthResponse(null, null, null);
     }
 
 }
