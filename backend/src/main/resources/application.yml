@@ -25,5 +25,13 @@ app:
     secret: ${JWT_SECRET}
     expiration: 86400000
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 server:
   port: 8080

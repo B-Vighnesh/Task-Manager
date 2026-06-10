@@ -1,6 +1,7 @@
 {
   "info": {
     "name": "Task Backend API",
+    "description": "Postman collection for the Task Manager backend. Run Register/Login first, then use the saved token for protected task APIs.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -34,7 +35,7 @@
             "url": "{{baseUrl}}/api/auth/v1/register",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Password123\"\n}"
             }
           }
         },
@@ -65,7 +66,7 @@
             "url": "{{baseUrl}}/api/auth/v1/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"Password123\"\n}"
             }
           }
         }
@@ -170,7 +171,7 @@
           }
         },
         {
-          "name": "Admin - Get All Tasks",
+          "name": "Admin - View All Tasks",
           "request": {
             "method": "GET",
             "header": [
