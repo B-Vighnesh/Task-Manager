@@ -17,6 +17,7 @@ public class TaskResponse {
     private String description;
     private boolean completed;
     private UUID ownerId;
+    private String ownerUsername;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

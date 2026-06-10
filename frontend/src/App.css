@@ -134,6 +134,12 @@ label {
   font-weight: 700;
 }
 
+.help-text {
+  margin: -8px 0 14px;
+  color: #526071;
+  font-size: 13px;
+}
+
 input,
 textarea {
   width: 100%;
@@ -144,6 +150,40 @@ textarea {
   font: inherit;
   color: #172033;
   background: #ffffff;
+}
+
+.password-box {
+  position: relative;
+}
+
+.password-box input {
+  padding-right: 48px;
+}
+
+.icon-button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #526071;
+  background: transparent;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  color: #172033;
+  background: #eef2f7;
+}
+
+.eye-icon {
+  width: 20px;
+  height: 20px;
 }
 
 textarea {

@@ -3,10 +3,21 @@ import './App.css'
 
 const API_BASE_URL = 'http://localhost:8080'
 const emptyTask = { title: '', description: '', completed: false }
+const emptyAuthForm = {
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+}
+
+const usernamePattern = /^[A-Za-z0-9_]{3,20}$/
+const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/
 
 function App() {
   const [authMode, setAuthMode] = useState('login')
-  const [authForm, setAuthForm] = useState({ username: '', email: '', password: '' })
+  const [authForm, setAuthForm] = useState(emptyAuthForm)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [session, setSession] = useState(() => {
     const saved = localStorage.getItem('task_session')
     return saved ? JSON.parse(saved) : null
@@ -35,17 +46,18 @@ function App() {
   )
 
   useEffect(() => {
-    if (session) {
-      localStorage.setItem('task_session', JSON.stringify(session))
-      fetchUserTasks(session.token)
-      if (session.role === 'ADMIN') {
-        fetchAdminTasks(session.token)
-      }
-    } else {
+    if (!session) {
       localStorage.removeItem('task_session')
       setTasks([])
       setAdminTasks([])
       setActivePage('tasks')
+      return
+    }
+
+    localStorage.setItem('task_session', JSON.stringify(session))
+    fetchUserTasks(session.token, false)
+    if (session.role === 'ADMIN') {
+      fetchAdminTasks(session.token, false)
     }
   }, [session])
 
@@ -81,15 +93,50 @@ function App() {
     }))
   }
 
+  function changeAuthMode(nextMode) {
+    setAuthMode(nextMode)
+    setAuthForm(emptyAuthForm)
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+  }
+
+  function validateRegisterForm() {
+    if (!usernamePattern.test(authForm.username)) {
+      showMessage('Username must be 3-20 characters and use only letters, numbers, or underscore', 'error')
+      return false
+    }
+
+    if (!passwordPattern.test(authForm.password)) {
+      showMessage('Password must be 8+ characters with uppercase, lowercase, and a number', 'error')
+      return false
+    }
+
+    if (authForm.password !== authForm.confirmPassword) {
+      showMessage('Password and confirm password must match', 'error')
+      return false
+    }
+
+    return true
+  }
+
   async function submitAuth(event) {
     event.preventDefault()
+
+    if (authMode === 'register' && !validateRegisterForm()) {
+      return
+    }
+
     setLoading(true)
 
     const path = authMode === 'login' ? '/api/auth/v1/login' : '/api/auth/v1/register'
     const body =
       authMode === 'login'
         ? { email: authForm.email, password: authForm.password }
-        : authForm
+        : {
+            username: authForm.username,
+            email: authForm.email,
+            password: authForm.password,
+          }
 
     try {
       const result = await request(path, {
@@ -99,7 +146,7 @@ function App() {
       })
 
       setSession(result.data)
-      setAuthForm({ username: '', email: '', password: '' })
+      setAuthForm(emptyAuthForm)
       showMessage(result.message)
     } catch (error) {
       showMessage(error.message, 'error')
@@ -108,7 +155,7 @@ function App() {
     }
   }
 
-  async function fetchUserTasks(token = session?.token) {
+  async function fetchUserTasks(token = session?.token, announce = true) {
     if (!token) return
 
     try {
@@ -116,13 +163,13 @@ function App() {
         headers: { Authorization: `Bearer ${token}` },
       })
       setTasks(result.data || [])
-      showMessage('User tasks fetched')
+      if (announce) showMessage('User tasks fetched')
     } catch (error) {
       showMessage(error.message, 'error')
     }
   }
 
-  async function fetchAdminTasks(token = session?.token) {
+  async function fetchAdminTasks(token = session?.token, announce = true) {
     if (!token) return
 
     try {
@@ -130,7 +177,7 @@ function App() {
         headers: { Authorization: `Bearer ${token}` },
       })
       setAdminTasks(result.data || [])
-      showMessage('Admin tasks fetched')
+      if (announce) showMessage('Admin tasks fetched')
     } catch (error) {
       showMessage(error.message, 'error')
     }
@@ -150,11 +197,11 @@ function App() {
         body: JSON.stringify(taskForm),
       })
 
-      showMessage(result.message)
       setTaskForm(emptyTask)
       setEditingId(null)
+      showMessage(result.message)
       fetchUserTasks()
-      if (isAdmin) fetchAdminTasks()
+      if (isAdmin) fetchAdminTasks(session.token, false)
     } catch (error) {
       showMessage(error.message, 'error')
     } finally {
@@ -197,14 +244,10 @@ function App() {
           item.id === task.id ? { ...item, completed: !item.completed } : item,
         ),
       )
-      setAdminTasks((current) =>
-        current.map((item) =>
-          item.id === task.id ? { ...item, completed: !item.completed } : item,
-        ),
-      )
       if (editingId === task.id) {
         setTaskForm((current) => ({ ...current, completed: !task.completed }))
       }
+      if (isAdmin) fetchAdminTasks(session.token, false)
       showMessage(result.message)
     } catch (error) {
       showMessage(error.message, 'error')
@@ -223,7 +266,7 @@ function App() {
       })
 
       setTasks((current) => current.filter((task) => task.id !== id))
-      setAdminTasks((current) => current.filter((task) => task.id !== id))
+      if (isAdmin) fetchAdminTasks(session.token, false)
       if (editingId === id) cancelEdit()
       showMessage(result.message)
     } catch (error) {
@@ -240,12 +283,12 @@ function App() {
     showMessage('Logged out')
   }
 
-  function renderTaskList(list, emptyText, showOwner = false) {
-    if (list.length === 0) {
-      return <div className="empty-state">{emptyText}</div>
+  function renderUserTasks() {
+    if (tasks.length === 0) {
+      return <div className="empty-state">No tasks yet.</div>
     }
 
-    return list.map((task) => (
+    return tasks.map((task) => (
       <article className="task-card" key={task.id}>
         <div>
           <div className="task-title-row">
@@ -259,7 +302,6 @@ function App() {
             <h3>{task.title}</h3>
           </div>
           {task.description && <p>{task.description}</p>}
-          {showOwner && <p className="owner-text">Owner: {task.ownerId}</p>}
           <span className={task.completed ? 'status done' : 'status'}>
             {task.completed ? 'Completed' : 'Pending'}
           </span>
@@ -271,6 +313,27 @@ function App() {
           <button className="danger-button" type="button" onClick={() => deleteTask(task.id)}>
             Delete
           </button>
+        </div>
+      </article>
+    ))
+  }
+
+  function renderAdminTasks() {
+    if (adminTasks.length === 0) {
+      return <div className="empty-state">No tasks found for admin.</div>
+    }
+
+    return adminTasks.map((task) => (
+      <article className="task-card admin-task-card" key={task.id}>
+        <div>
+          <div className="task-title-row">
+            <h3>{task.title}</h3>
+          </div>
+          {task.description && <p>{task.description}</p>}
+          <p className="owner-text">Owner: {task.ownerUsername || 'Unknown user'}</p>
+          <span className={task.completed ? 'status done' : 'status'}>
+            {task.completed ? 'Completed' : 'Pending'}
+          </span>
         </div>
       </article>
     ))
@@ -298,14 +361,14 @@ function App() {
             <button
               className={authMode === 'login' ? 'active' : ''}
               type="button"
-              onClick={() => setAuthMode('login')}
+              onClick={() => changeAuthMode('login')}
             >
               Login
             </button>
             <button
               className={authMode === 'register' ? 'active' : ''}
               type="button"
-              onClick={() => setAuthMode('register')}
+              onClick={() => changeAuthMode('register')}
             >
               Register
             </button>
@@ -314,19 +377,25 @@ function App() {
           <form className="form-card" onSubmit={submitAuth}>
             <h2>{authTitle}</h2>
             {authMode === 'register' && (
-              <label>
-                Username
-                <input
-                  name="username"
-                  type="text"
-                  value={authForm.username}
-                  onChange={updateAuthField}
-                  minLength="3"
-                  maxLength="50"
-                  required
-                />
-              </label>
+              <>
+                <label>
+                  Username
+                  <input
+                    name="username"
+                    type="text"
+                    value={authForm.username}
+                    onChange={updateAuthField}
+                    minLength="3"
+                    maxLength="20"
+                    pattern="[A-Za-z0-9_]{3,20}"
+                    title="Use 3-20 letters, numbers, or underscore"
+                    required
+                  />
+                </label>
+                <p className="help-text">3-20 letters, numbers, or underscore only.</p>
+              </>
             )}
+
             <label>
               Email
               <input
@@ -337,17 +406,58 @@ function App() {
                 required
               />
             </label>
+
             <label>
               Password
-              <input
-                name="password"
-                type="password"
-                value={authForm.password}
-                onChange={updateAuthField}
-                minLength="6"
-                required
-              />
+              <div className="password-box">
+                <input
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={authForm.password}
+                  onChange={updateAuthField}
+                  minLength={authMode === 'register' ? '8' : '6'}
+                  pattern={authMode === 'register' ? '(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}' : undefined}
+                  title="Use 8+ characters with uppercase, lowercase, and a number"
+                  required
+                />
+                <button
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="icon-button"
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                >
+                  <EyeIcon hidden={showPassword} />
+                </button>
+              </div>
             </label>
+
+            {authMode === 'register' && (
+              <>
+                <p className="help-text">8+ characters with uppercase, lowercase, and a number.</p>
+                <label>
+                  Confirm password
+                  <div className="password-box">
+                    <input
+                      name="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={authForm.confirmPassword}
+                      onChange={updateAuthField}
+                      minLength="8"
+                      required
+                    />
+                    <button
+                      aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                      className="icon-button"
+                      type="button"
+                      onClick={() => setShowConfirmPassword((current) => !current)}
+                    >
+                      <EyeIcon hidden={showConfirmPassword} />
+                    </button>
+                  </div>
+                </label>
+              </>
+            )}
+
             <button className="primary-button" type="submit" disabled={loading}>
               {loading ? 'Please wait' : submitLabel}
             </button>
@@ -432,7 +542,7 @@ function App() {
                     Fetch all tasks
                   </button>
                 </div>
-                {renderTaskList(tasks, 'No tasks yet.')}
+                {renderUserTasks()}
               </div>
             </section>
           )}
@@ -440,17 +550,40 @@ function App() {
           {activePage === 'admin' && isAdmin && (
             <section className="admin-page">
               <div className="list-header">
-                <h2>Admin Tasks</h2>
+                <h2>All Tasks</h2>
                 <button className="secondary-button" type="button" onClick={() => fetchAdminTasks()}>
-                  Fetch all admin tasks
+                  Fetch all tasks
                 </button>
               </div>
-              {renderTaskList(adminTasks, 'No tasks found for admin.', true)}
+              {renderAdminTasks()}
             </section>
           )}
         </section>
       )}
     </main>
+  )
+}
+
+function EyeIcon({ hidden }) {
+  return (
+    <svg aria-hidden="true" className="eye-icon" viewBox="0 0 24 24">
+      <path
+        d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <circle cx="12" cy="12" fill="none" r="3" stroke="currentColor" strokeWidth="2" />
+      {hidden && (
+        <path
+          d="M4 20 20 4"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="2"
+        />
+      )}
+    </svg>
   )
 }
 

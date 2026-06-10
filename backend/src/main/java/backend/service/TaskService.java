@@ -117,6 +117,7 @@ public class TaskService {
                 task.getDescription(),
                 task.isCompleted(),
                 task.getOwner().getId(),
+                task.getOwner().getUsername(),
                 task.getCreatedAt(),
                 task.getUpdatedAt()
         );
