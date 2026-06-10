@@ -6,16 +6,14 @@ const emptyTask = { title: '', description: '', completed: false }
 
 function App() {
   const [authMode, setAuthMode] = useState('login')
-  const [authForm, setAuthForm] = useState({
-    username: '',
-    email: '',
-    password: '',
-  })
+  const [authForm, setAuthForm] = useState({ username: '', email: '', password: '' })
   const [session, setSession] = useState(() => {
     const saved = localStorage.getItem('task_session')
     return saved ? JSON.parse(saved) : null
   })
+  const [activePage, setActivePage] = useState('tasks')
   const [tasks, setTasks] = useState([])
+  const [adminTasks, setAdminTasks] = useState([])
   const [taskForm, setTaskForm] = useState(emptyTask)
   const [editingId, setEditingId] = useState(null)
   const [message, setMessage] = useState('')
@@ -23,6 +21,7 @@ function App() {
   const [loading, setLoading] = useState(false)
 
   const isLoggedIn = Boolean(session?.token)
+  const isAdmin = session?.role === 'ADMIN'
   const authTitle = authMode === 'login' ? 'Login' : 'Register'
   const submitLabel = authMode === 'login' ? 'Login' : 'Create account'
   const taskSubmitLabel = editingId ? 'Update task' : 'Add task'
@@ -38,10 +37,15 @@ function App() {
   useEffect(() => {
     if (session) {
       localStorage.setItem('task_session', JSON.stringify(session))
-      fetchTasks(session.token)
+      fetchUserTasks(session.token)
+      if (session.role === 'ADMIN') {
+        fetchAdminTasks(session.token)
+      }
     } else {
       localStorage.removeItem('task_session')
       setTasks([])
+      setAdminTasks([])
+      setActivePage('tasks')
     }
   }, [session])
 
@@ -95,8 +99,8 @@ function App() {
       })
 
       setSession(result.data)
-      showMessage(result.message)
       setAuthForm({ username: '', email: '', password: '' })
+      showMessage(result.message)
     } catch (error) {
       showMessage(error.message, 'error')
     } finally {
@@ -104,16 +108,29 @@ function App() {
     }
   }
 
-  async function fetchTasks(token = session?.token) {
+  async function fetchUserTasks(token = session?.token) {
     if (!token) return
 
     try {
       const result = await request('/api/v1/tasks', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       })
       setTasks(result.data || [])
+      showMessage('User tasks fetched')
+    } catch (error) {
+      showMessage(error.message, 'error')
+    }
+  }
+
+  async function fetchAdminTasks(token = session?.token) {
+    if (!token) return
+
+    try {
+      const result = await request('/api/v1/tasks/admin', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setAdminTasks(result.data || [])
+      showMessage('Admin tasks fetched')
     } catch (error) {
       showMessage(error.message, 'error')
     }
@@ -136,7 +153,8 @@ function App() {
       showMessage(result.message)
       setTaskForm(emptyTask)
       setEditingId(null)
-      fetchTasks()
+      fetchUserTasks()
+      if (isAdmin) fetchAdminTasks()
     } catch (error) {
       showMessage(error.message, 'error')
     } finally {
@@ -145,6 +163,7 @@ function App() {
   }
 
   function startEdit(task) {
+    setActivePage('tasks')
     setEditingId(task.id)
     setTaskForm({
       title: task.title,
@@ -159,6 +178,41 @@ function App() {
     setTaskForm(emptyTask)
   }
 
+  async function toggleTaskCompleted(task) {
+    setLoading(true)
+
+    try {
+      const result = await request(`/api/v1/tasks/${task.id}`, {
+        method: 'PUT',
+        headers: authHeaders,
+        body: JSON.stringify({
+          title: task.title,
+          description: task.description || '',
+          completed: !task.completed,
+        }),
+      })
+
+      setTasks((current) =>
+        current.map((item) =>
+          item.id === task.id ? { ...item, completed: !item.completed } : item,
+        ),
+      )
+      setAdminTasks((current) =>
+        current.map((item) =>
+          item.id === task.id ? { ...item, completed: !item.completed } : item,
+        ),
+      )
+      if (editingId === task.id) {
+        setTaskForm((current) => ({ ...current, completed: !task.completed }))
+      }
+      showMessage(result.message)
+    } catch (error) {
+      showMessage(error.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function deleteTask(id) {
     setLoading(true)
 
@@ -168,11 +222,10 @@ function App() {
         headers: authHeaders,
       })
 
+      setTasks((current) => current.filter((task) => task.id !== id))
+      setAdminTasks((current) => current.filter((task) => task.id !== id))
+      if (editingId === id) cancelEdit()
       showMessage(result.message)
-      if (editingId === id) {
-        cancelEdit()
-      }
-      fetchTasks()
     } catch (error) {
       showMessage(error.message, 'error')
     } finally {
@@ -185,6 +238,42 @@ function App() {
     setTaskForm(emptyTask)
     setEditingId(null)
     showMessage('Logged out')
+  }
+
+  function renderTaskList(list, emptyText, showOwner = false) {
+    if (list.length === 0) {
+      return <div className="empty-state">{emptyText}</div>
+    }
+
+    return list.map((task) => (
+      <article className="task-card" key={task.id}>
+        <div>
+          <div className="task-title-row">
+            <input
+              aria-label={`Mark ${task.title} complete`}
+              checked={task.completed}
+              disabled={loading}
+              type="checkbox"
+              onChange={() => toggleTaskCompleted(task)}
+            />
+            <h3>{task.title}</h3>
+          </div>
+          {task.description && <p>{task.description}</p>}
+          {showOwner && <p className="owner-text">Owner: {task.ownerId}</p>}
+          <span className={task.completed ? 'status done' : 'status'}>
+            {task.completed ? 'Completed' : 'Pending'}
+          </span>
+        </div>
+        <div className="card-actions">
+          <button className="secondary-button" type="button" onClick={() => startEdit(task)}>
+            Edit
+          </button>
+          <button className="danger-button" type="button" onClick={() => deleteTask(task.id)}>
+            Delete
+          </button>
+        </div>
+      </article>
+    ))
   }
 
   return (
@@ -270,86 +359,95 @@ function App() {
             <p className="eyebrow">Signed in</p>
             <h2>{session.username}</h2>
             <span className="role-badge">{session.role}</span>
-          </aside>
-
-          <section className="workspace">
-            <form className="form-card task-form" onSubmit={submitTask}>
-              <h2>{taskSubmitLabel}</h2>
-              <label>
-                Title
-                <input
-                  name="title"
-                  type="text"
-                  value={taskForm.title}
-                  onChange={updateTaskField}
-                  maxLength="120"
-                  required
-                />
-              </label>
-              <label>
-                Description
-                <textarea
-                  name="description"
-                  value={taskForm.description}
-                  onChange={updateTaskField}
-                  maxLength="1000"
-                  rows="4"
-                />
-              </label>
-              <label className="checkbox-row">
-                <input
-                  name="completed"
-                  type="checkbox"
-                  checked={taskForm.completed}
-                  onChange={updateTaskField}
-                />
-                Completed
-              </label>
-              <div className="button-row">
-                <button className="primary-button" type="submit" disabled={loading}>
-                  {loading ? 'Saving' : taskSubmitLabel}
+            <div className="side-nav">
+              <button
+                className={activePage === 'tasks' ? 'active' : ''}
+                type="button"
+                onClick={() => setActivePage('tasks')}
+              >
+                My tasks
+              </button>
+              {isAdmin && (
+                <button
+                  className={activePage === 'admin' ? 'active' : ''}
+                  type="button"
+                  onClick={() => setActivePage('admin')}
+                >
+                  Admin page
                 </button>
-                {editingId && (
-                  <button className="secondary-button" type="button" onClick={cancelEdit}>
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </form>
-
-            <div className="task-list">
-              <div className="list-header">
-                <h2>Tasks</h2>
-                <button className="secondary-button" type="button" onClick={() => fetchTasks()}>
-                  Refresh
-                </button>
-              </div>
-
-              {tasks.length === 0 ? (
-                <div className="empty-state">No tasks yet.</div>
-              ) : (
-                tasks.map((task) => (
-                  <article className="task-card" key={task.id}>
-                    <div>
-                      <h3>{task.title}</h3>
-                      {task.description && <p>{task.description}</p>}
-                      <span className={task.completed ? 'status done' : 'status'}>
-                        {task.completed ? 'Completed' : 'Pending'}
-                      </span>
-                    </div>
-                    <div className="card-actions">
-                      <button className="secondary-button" type="button" onClick={() => startEdit(task)}>
-                        Edit
-                      </button>
-                      <button className="danger-button" type="button" onClick={() => deleteTask(task.id)}>
-                        Delete
-                      </button>
-                    </div>
-                  </article>
-                ))
               )}
             </div>
-          </section>
+          </aside>
+
+          {activePage === 'tasks' && (
+            <section className="workspace">
+              <form className="form-card task-form" onSubmit={submitTask}>
+                <h2>{taskSubmitLabel}</h2>
+                <label>
+                  Title
+                  <input
+                    name="title"
+                    type="text"
+                    value={taskForm.title}
+                    onChange={updateTaskField}
+                    maxLength="120"
+                    required
+                  />
+                </label>
+                <label>
+                  Description
+                  <textarea
+                    name="description"
+                    value={taskForm.description}
+                    onChange={updateTaskField}
+                    maxLength="1000"
+                    rows="4"
+                  />
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    name="completed"
+                    type="checkbox"
+                    checked={taskForm.completed}
+                    onChange={updateTaskField}
+                  />
+                  Completed
+                </label>
+                <div className="button-row">
+                  <button className="primary-button" type="submit" disabled={loading}>
+                    {loading ? 'Saving' : taskSubmitLabel}
+                  </button>
+                  {editingId && (
+                    <button className="secondary-button" type="button" onClick={cancelEdit}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              <div className="task-list">
+                <div className="list-header">
+                  <h2>My Tasks</h2>
+                  <button className="secondary-button" type="button" onClick={() => fetchUserTasks()}>
+                    Fetch all tasks
+                  </button>
+                </div>
+                {renderTaskList(tasks, 'No tasks yet.')}
+              </div>
+            </section>
+          )}
+
+          {activePage === 'admin' && isAdmin && (
+            <section className="admin-page">
+              <div className="list-header">
+                <h2>Admin Tasks</h2>
+                <button className="secondary-button" type="button" onClick={() => fetchAdminTasks()}>
+                  Fetch all admin tasks
+                </button>
+              </div>
+              {renderTaskList(adminTasks, 'No tasks found for admin.', true)}
+            </section>
+          )}
         </section>
       )}
     </main>
